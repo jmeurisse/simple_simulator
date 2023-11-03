@@ -1,0 +1,40 @@
+<mujoco>
+    <worldbody>
+        <light pos="0 0 3" dir="0 0 -1" diffuse="1 1 1"/>
+        
+        <!-- Define a simple robotic arm -->
+        <body name="base" pos="0 0 0">
+            <joint name="base_rotate" type="hinge" axis="0 0 1"/>
+            <geom type="box" size="0.05 0.05 0.1"/>
+            
+            <body name="arm" pos="0 0 0.1">
+                <joint name="arm_flex" type="hinge" axis="1 0 0" range="-1.57 1.57"/>
+                <geom type="box" size="0.04 0.04 0.2"/>
+                
+                <body name="forearm" pos="0 0 0.2">
+                    <joint name="elbow_flex" type="hinge" axis="1 0 0" range="-1.57 1.57"/>
+                    <geom type="box" size="0.03 0.03 0.2"/>
+                    
+                    <!-- Define the hand or end effector -->
+                    <body name="hand" pos="0 0 0.2">
+                        <joint name="wrist_flex" type="hinge" axis="1 0 0" range="-1.57 1.57"/>
+                        <geom type="box" size="0.02 0.02 0.05"/>
+                    </body>
+                </body>
+            </body>
+        </body>
+    </worldbody>
+    <actuator>
+        <!-- Actuator for the base rotation -->
+        <motor joint="base_rotate" name="act_base_rotate" gear="100"/>
+
+        <!-- Actuator for the arm flexion -->
+        <motor joint="arm_flex" name="act_arm_flex" gear="100"/>
+
+        <!-- Actuator for the elbow flexion -->
+        <motor joint="elbow_flex" name="act_elbow_flex" gear="100"/>
+
+        <!-- Actuator for the wrist flexion -->
+        <motor joint="wrist_flex" name="act_wrist_flex" gear="100"/>
+    </actuator>
+</mujoco>

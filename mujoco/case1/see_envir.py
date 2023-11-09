@@ -1,6 +1,7 @@
 import mujoco
 import imageio
 import os, sys
+import numpy as np
 
 expected_env = 'ffmpeg'
 current_env = os.environ.get('CONDA_DEFAULT_ENV')
@@ -49,7 +50,10 @@ for i in range(0,model.nbody):
 #data.qpos[1]=-0.3     # SPHERE translation X   
 #data.qpos[2]=0.01     # SPHERE translation Y
 #data.qpos[3]=1.3      # SPHERE translation Z
-#data.qpos[4]=sin(45)  # SPHERE rotation around X
+angle = np.deg2rad(45)
+quat = [0, np.sin(angle / 2), 0, np.cos(angle / 2)]
+data.qpos[4:]=quat  # SPHERE rotation around Y
+# quat = [sin(θ/2) * axis_x, sin(θ/2) * axis_y, sin(θ/2) * axis_z, cos(θ/2)]
 
 # AXIS
 # Z
@@ -67,7 +71,6 @@ for i in range(0,model.nbody):
 # Force or Torque Actuators (default for <motor> tags): The unit of control is typically force in Newtons (N) or torque in Newton-meters (Nm).
 # Position Actuators: If the actuator is a position servo, then the control signal would be in the units of position (e.g., meters for translational joints, radians for rotational joints).
 # Velocity Actuators: If the actuator is controlling velocity, then the control input would be in units of velocity (e.g., meters per second for translational joints, radians per second for rotational joints).
-
 
 # update data
 mujoco.mj_forward(model, data)
@@ -95,7 +98,6 @@ while data.time < duration:
     renderer.update_scene(data, scene_option=scene_option)
     pixels = renderer.render()
     frames.append(pixels)
-
 
 # Simulate and display video.
 video_name="mujoco_video.mp4"

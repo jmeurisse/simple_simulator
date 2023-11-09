@@ -11,7 +11,8 @@
             <joint name="bar_joint" type="slide" axis="1 0 0" range="-1 1"/>
         </body>
         <body name="ball" pos="0 0 1.5">
-            <geom name="ball_geom" density="100" type="sphere" size="0.1" rgba="0.1 0.1 0.8 1" solref="-1000 0"/>
+            <geom name="ball_geom" type="ellipsoid" size="0.17 0.11 0.11" 
+                  density="300" rgba="0.1 0.1 0.8 1" solref="-1000 0"/>
             <joint name="ball_joint" type="free"/>
         </body>
     </worldbody>

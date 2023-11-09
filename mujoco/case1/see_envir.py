@@ -77,7 +77,7 @@ mujoco.mj_forward(model, data)
 
 # enable joint visualization option:
 scene_option = mujoco.MjvOption()
-scene_option.flags[mujoco.mjtVisFlag.mjVIS_JOINT] = True
+# scene_option.flags[mujoco.mjtVisFlag.mjVIS_JOINT] = True
 
 # Image
 renderer.update_scene(data)

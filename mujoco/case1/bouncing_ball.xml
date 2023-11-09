@@ -24,8 +24,10 @@
         </body>
         <body name="ball" pos="0 0 1.5">
             <geom name="ball_geom" type="ellipsoid" size="0.17 0.11 0.11" 
-                  density="300" rgba="0.1 0.1 0.8 1" solref="-1000 0"/>
-            <joint name="ball_joint" type="free"/>
+                  density="100" rgba="0.1 0.1 0.8 1" solref="-1000 0"/>
+            <joint name="ball_slide_x" type="slide" axis="1 0 0"/>
+            <joint name="ball_slide_z" type="slide" axis="0 0 1"/>
+            <joint name="ball_hinge_y" type="hinge" axis="0 1 0"/>
         </body>
     </worldbody>
     <actuator>

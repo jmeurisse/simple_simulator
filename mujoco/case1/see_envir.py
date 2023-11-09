@@ -45,14 +45,18 @@ for i in range(0,model.nbody):
 # get id
 # id = mujoco.mj_name2id(model, mujoco.mjtObj.mjOBJ_JOINT, 'slide_joint')
 
-# positions of DOF
+# positions of DOF for joint + free
 #data.qpos[0]=-0.5     # SLIDE translation X
 #data.qpos[1]=-0.3     # SPHERE translation X   
 #data.qpos[2]=0.01     # SPHERE translation Y
 #data.qpos[3]=1.3      # SPHERE translation Z
-angle = np.deg2rad(45)
-quat = [0, np.sin(angle / 2), 0, np.cos(angle / 2)]
-data.qpos[4:]=quat  # SPHERE rotation around Y
+#angle = np.deg2rad(45)
+#quat = [0, np.sin(angle / 2), 0, np.cos(angle / 2)]
+#data.qpos[4:]=quat  # SPHERE rotation around Y
+
+# joint + 2 joints + 1 hinge = len(qpos)=4
+data.qpos[3]=np.deg2rad(45)
+
 # quat = [sin(θ/2) * axis_x, sin(θ/2) * axis_y, sin(θ/2) * axis_z, cos(θ/2)]
 
 # AXIS

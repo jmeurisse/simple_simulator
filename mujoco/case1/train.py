@@ -1,4 +1,5 @@
-import gym
+import gym, sys, imageio
+from PIL import Image
 import tensorflow as tf
 from tensorflow.keras import layers
 import numpy as np
@@ -9,7 +10,7 @@ class BouncingBallEnv(gym.Env):
     def __init__(self):
         # Define action and observation space
         self.action_space = gym.spaces.Box(low=-5.0, high=5.0, shape=(1,), dtype=np.float32)
-        self.observation_space = gym.spaces.Box(low=-np.inf, high=np.inf, shape=(15,), dtype=np.float32) # same size than state
+        self.observation_space = gym.spaces.Box(low=-np.inf, high=np.inf, shape=(8,), dtype=np.float32) # same size than state
 
         # Load the model from an XML file
         self.model = mujoco.MjModel.from_xml_path("bouncing_ball.xml")
@@ -30,44 +31,65 @@ class BouncingBallEnv(gym.Env):
         # Get the state
         xpos = self.data.qpos[:]
         xvel = self.data.qvel[:]
-        # print("len(xpos)=",len(xpos)) # 1 value (slide position) + 7 values (3D position + 4D quaternion)
-        # print("len(xvel)=",len(xvel)) # 1 value (slide position) + 6 values (3D linear velocity + 3D angular velocity)
+        # print("len(xpos)=",len(xpos)) # 1 value (slide position) + 4 values (bar 1 joint + ball 2 joints 1 hinge)
+        # print("len(xvel)=",len(xvel)) # 1 value (slide position) + 4 values (bar 1 joint + ball 2 joints 1 hinge)
         state = np.concatenate([xpos, xvel])
 
         # Define reward and done condition
-        reward = 1.0 if self._ball_is_on_bar(xpos) else -1.0
-        done = False if reward > 0 else True
+        reward = 1.0 if self._ball_is_on_bar(xpos) else 0
 
-        return state, reward, done, {}
+        # Define loss condition
+        action_probs = model(state_tensor)
+        print("action_probs",action_probs)
+        log_probs = tf.math.log(action_probs)
+        print("log=",log_probs)
+        loss = -tf.reduce_sum(tf.multiply(log_probs, reward))
+        print("loss=",loss)
+              
+        # Define done condition
+        ball_geom_id = mujoco.mj_name2id(self.model, mujoco.mjtObj.mjOBJ_GEOM, 'ball_geom')
+        ball_z_position = xpos[2] + self.data.geom_xpos[ball_geom_id][2] # z ball position
+        floor_z_position = 0.5  # between the height of the bar and the height of the floor
+        done = ball_z_position <= floor_z_position
+
+        return state, loss, done, {}
 
     def reset(self):
         # Reset the simulation
         mujoco.mj_resetData(self.model, self.data)
-        state = self.data.qpos.flatten().copy()
+        xpos = self.data.qpos[:]
+        xvel = self.data.qvel[:]
+        state = np.concatenate([xpos, xvel])
+        # state = self.data.qpos.flatten().copy()
+        state[3] = np.deg2rad(45)
         return state
 
     def _ball_is_on_bar(self, xpos):
         # Let's assume the bar's position and tolerance
-        bar_y_position = 1.0  # The fixed y-position of the bar
-        y_tolerance = 0.1     # How close the ball needs to be in the y-axis
-        bar_x_min = -1.0      # The minimum x-position of the bar
-        bar_x_max = 1.0       # The maximum x-position of the bar
+        bar_z_position = 1.0  # The fixed z-position of the bar
+        z_tolerance = 0.1     # How close the ball needs to be in the z-axis
+        bar_x_min = -0.25      # The minimum x-position of the bar
+        bar_x_max = 0.25       # The maximum x-position of the bar
+
+        ball_geom_id = mujoco.mj_name2id(self.model, mujoco.mjtObj.mjOBJ_GEOM, 'ball_geom')
 
         # Check if the ball's x-position is within the range of the bar
-        is_within_x_range = bar_x_min <= xpos[0] <= bar_x_max
-        # Check if the ball's y-position is close to the bar's y-position
-        is_close_to_y_position = abs(xpos[1] - bar_y_position) <= y_tolerance
+        is_within_x_range = bar_x_min <= xpos[1] + self.data.geom_xpos[ball_geom_id][0] <= bar_x_max
+        # Check if the ball's z-position is close to the bar's y-position
+        is_close_to_z_position = abs(xpos[2] + self.data.geom_xpos[ball_geom_id][2] - bar_z_position) <= z_tolerance
 
         # The ball is considered to be 'on' the bar if both conditions are True
-        return is_within_x_range and is_close_to_y_position
+        # print("is_within_x_range=",is_within_x_range)
+        # print("is_close_to_z_position=",is_close_to_z_position)
+        return is_within_x_range and is_close_to_z_position
         
 # Define the policy model using TensorFlow
 class PolicyModel(tf.keras.Model):
     def __init__(self):
         super(PolicyModel, self).__init__()
-        self.dense1 = layers.Dense(64, activation='relu')
-        self.dense2 = layers.Dense(64, activation='relu')
-        self.dense3 = layers.Dense(1, activation='tanh')
+        self.dense1 = layers.Dense(64, activation='relu', trainable=True)
+        self.dense2 = layers.Dense(64, activation='relu', trainable=True)
+        self.dense3 = layers.Dense(1, activation='tanh', trainable=True)
 
     def call(self, inputs):
         x = self.dense1(inputs)
@@ -78,6 +100,12 @@ class PolicyModel(tf.keras.Model):
 env = BouncingBallEnv()
 model = PolicyModel()
 
+# video
+renderer = mujoco.Renderer(env.model)
+frames = []
+framerate = 60  # (Hz)
+output_size = (1920, 1088)
+
 # Training loop
 optimizer = tf.optimizers.Adam(learning_rate=0.01)
 for episode in range(1000):
@@ -85,15 +113,33 @@ for episode in range(1000):
         state = env.reset()
         episode_reward = 0
         done = False
+        # i = 0
         while not done:
+            # print("step ",i)
+            # i+=1
             state_tensor = tf.convert_to_tensor(state)
             state_tensor = tf.expand_dims(state_tensor, 0)
             action = model(state_tensor)
-            state, reward, done, _ = env.step(action.numpy())
-            #episode_reward += reward
-            episode_reward += tf.cast(reward, tf.float32)  # Ensure reward is a TensorFlow tensor
+            state, loss, done, _ = env.step(action.numpy())
+            # episode_reward += tf.cast(loss, tf.float32)  # Ensure reward is a TensorFlow tensor
+            # save frame
+            # renderer.update_scene(env.data)
+            # pixels = renderer.render()
+            # frames.append(pixels)
+
+        # Create video
+        # video_name="episode_"+str(episode)+".mp4"
+        # with imageio.get_writer(video_name, fps=framerate) as writer:
+        #     for frame in frames:
+        #         frame_image = Image.fromarray(frame)
+        #         resized_frame = frame_image.resize(output_size, Image.Resampling.LANCZOS)
+        #         writer.append_data(np.array(resized_frame))
+
+        # print("Video saved as ",video_name)
 
         # Compute the gradient and update the model
-        grads = tape.gradient(episode_reward, model.trainable_variables)
+        grads = tape.gradient(loss, model.trainable_variables)
         optimizer.apply_gradients(zip(grads, model.trainable_variables))
-        print(f"Episode: {episode} Reward: {episode_reward}")
+        print(f"Episode: {episode} Loss: {loss}")
+        sys.exit()
+        

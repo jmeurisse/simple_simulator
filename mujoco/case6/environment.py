@@ -15,7 +15,8 @@ class BouncingBallEnv(gym.Env):
     def __init__(self):
     
         # Define action and observation space
-        self.action_space = gym.spaces.Box(low=-5.0, high=5.0, shape=(1,), dtype=np.float32)
+        self.max_force_ctrl = 500
+        self.action_space = gym.spaces.Box(low=-self.max_force_ctrl, high=self.max_force_ctrl, shape=(1,), dtype=np.float32)
         self.observation_space = gym.spaces.Box(low=-np.inf, high=np.inf, shape=(8,), dtype=np.float32) # same size than state
 
         # Create an OpenGL context
@@ -53,8 +54,8 @@ class BouncingBallEnv(gym.Env):
         self.frames = []
         
     def step(self, action):
-        self.data.ctrl[0] = action[0][0]
-        
+        self.data.ctrl[0] = action[0][0]*self.max_force_ctrl/10    
+        print("ctrl=",self.data.ctrl[0])
         mujoco.mj_forward(self.model, self.data)
 
         # Step the simulation
@@ -71,7 +72,7 @@ class BouncingBallEnv(gym.Env):
         # Define done condition
         ball_geom_id = mujoco.mj_name2id(self.model, mujoco.mjtObj.mjOBJ_GEOM, 'ball_geom')
         ball_z_position = xpos[2] + self.data.geom_xpos[ball_geom_id][2] # z ball position
-        floor_z_position = 0.5  # between the height of the bar and the height of the floor
+        floor_z_position = -1.2  # between the height of the bar and the height of the floor
         done = ball_z_position <= floor_z_position
 
         return state, reward, done, {}
@@ -90,6 +91,7 @@ class BouncingBallEnv(gym.Env):
     def render(self, mode):
         # Ensure the OpenGL context is current
         self.gl_context.make_current()
+        mujoco.mj_forward(self.model, self.data)
 
         mujoco.mjv_updateScene(
         self.model, self.data, mujoco.MjvOption(), mujoco.MjvPerturb(),

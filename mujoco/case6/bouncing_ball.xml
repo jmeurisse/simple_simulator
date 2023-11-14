@@ -23,7 +23,7 @@
 
         <body name="bar" pos="0 0 1">
             <geom name="bar_geom" type="box" size="0.5 0.1 0.1" rgba="0.8 0.1 0.1 1"/>
-            <joint name="bar_joint" type="slide" axis="1 0 0" range="-1 1"/>
+            <joint name="bar_joint" type="slide" axis="1 0 0" range="-1.25 1.25"/>
         </body>
         <body name="ball" pos="0 0 1.5">
             <geom name="ball_geom" type="ellipsoid" size="0.17 0.11 0.11" 
@@ -34,6 +34,6 @@
         </body>
     </worldbody>
     <actuator>
-        <motor joint="bar_joint" ctrlrange="-5.0 5.0" ctrllimited="true"/>
+        <motor joint="bar_joint" ctrlrange="-500 500" ctrllimited="true"/>
     </actuator>
 </mujoco>

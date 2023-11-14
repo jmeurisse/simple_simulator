@@ -40,7 +40,7 @@ def discount_rewards(rewards, gamma=0.99):
         discounted_r[t] = running_add
     return discounted_r
 
-min_loss = sys.float_info.max
+max_rewards = -1
 n_episodes = 10
 
 for episode in range(n_episodes):
@@ -58,6 +58,11 @@ for episode in range(n_episodes):
             episode_rewards.append(reward)
             episode_states.append(state_tensor)
             episode_actions.append(action)
+            env.render("video")
+
+        if episode == n_episodes-1:
+            print("Create episodes.mp4")
+            env.save_video("episodes.mp4") 
 
         # Prepare the data for loss calculation
         episode_states = tf.concat(episode_states, axis=0)
@@ -75,11 +80,15 @@ for episode in range(n_episodes):
         # Apply the gradients
         optimizer.apply_gradients(zip(grads, model.trainable_variables))
 
-        print(f"Episode: {episode} Reward: {np.sum(episode_rewards)} Loss: {loss}")
+        rewards_sum = np.sum(episode_rewards)
+        print(f"Episode: {episode} Reward: {rewards_sum} Loss: {loss}")
 
-        if loss < min_loss:
-            min_loss=loss
-            min_model=model
+
+        if rewards_sum > max_rewards:
+            max_rewards=rewards_sum
+            max_model=model
+            print("max is episode",episode)
+
 
 filepath="model_output"
-min_model.save(filepath)
+max_model.save(filepath)

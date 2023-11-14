@@ -43,8 +43,8 @@ while not done:
     env.render("video")
 
     # Image
-    env.render("image")
-    sys.exit()
+    # env.render("image")
+
 env.save_video("video.mp4")
 episode_rewards = discount_rewards(episode_rewards)
 print(f"Rewards sum: {np.sum(episode_rewards)}")

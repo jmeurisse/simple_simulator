@@ -18,31 +18,40 @@ class BouncingBallEnv(gym.Env):
         self.action_space = gym.spaces.Box(low=-5.0, high=5.0, shape=(1,), dtype=np.float32)
         self.observation_space = gym.spaces.Box(low=-np.inf, high=np.inf, shape=(8,), dtype=np.float32) # same size than state
 
-        # # Create an OpenGL context
-        self.width = 1920
-        self.height = 1088
-        # self.gl_context = mujoco.GLContext(self.width, self.height)
-        # self.gl_context.make_current()
+        # Create an OpenGL context
+        self.width = 640
+        self.height = 480
+        self.gl_context = mujoco.GLContext(self.width, self.height)
+        self.gl_context.make_current()
 
         # Load the model from an XML file
         self.model = mujoco.MjModel.from_xml_path("bouncing_ball.xml")
         self.data = mujoco.MjData(self.model)
+        mujoco.mj_forward(self.model, self.data)
 
-        # Render
-        self.renderer = mujoco.Renderer(self.model)
+        # Rendering
+        self.scn = mujoco.MjvScene(self.model, maxgeom=10000)
         self.cam = mujoco.MjvCamera()
         mujoco.mjv_defaultCamera(self.cam)
-        self.scn = mujoco.MjvScene(self.model, maxgeom=10000)
         self.cam.lookat[0] = 0  # x-position of the point to look at (origin)
         self.cam.lookat[1] = 0  # y-position of the point to look at (origin)
         self.cam.lookat[2] = 1  # z-position of the point to look at (origin)
         self.cam.distance = 4 # Distance from the point to look at
         self.cam.azimuth = 90 # Rotation around the vertical axis, in degrees
         self.cam.elevation = -30 # Angle above the horizon, in degrees
-        # self.ctx = mujoco.MjrContext(self.model, mujoco.mjtFontScale.mjFONTSCALE_150)
+
+        mujoco.mjv_updateScene(
+        self.model, self.data, mujoco.MjvOption(), mujoco.MjvPerturb(),
+        mujoco.MjvCamera(), mujoco.mjtCatBit.mjCAT_ALL.value, self.scn)
+
+        self.ctx = mujoco.MjrContext(self.model, mujoco.mjtFontScale.mjFONTSCALE_150.value)
+        mujoco.mjr_setBuffer(mujoco.mjtFramebuffer.mjFB_OFFSCREEN.value, self.ctx)
+
+        self.viewport = mujoco.MjrRect(0, 0, self.width, self.height)
+        mujoco.mjr_render(self.viewport, self.scn, self.ctx)     
+
         self.frames = []
         
-
     def step(self, action):
         self.data.ctrl[0] = action[0][0]
         
@@ -80,28 +89,33 @@ class BouncingBallEnv(gym.Env):
         # Ensure the OpenGL context is current
         self.gl_context.make_current()
 
-        # mujoco.mjv_updateScene(self.model, self.data, mujoco.MjvOption(), None, self.cam, mujoco.mjtCatBit.mjCAT_ALL, self.scn)
+        mujoco.mjv_updateScene(
+        self.model, self.data, mujoco.MjvOption(), mujoco.MjvPerturb(),
+        self.cam, mujoco.mjtCatBit.mjCAT_ALL.value, self.scn)
 
-        self.renderer.update_scene(self.data, self.cam)
         if mode == 'human':
             print(self.data)
         elif mode == 'image':
-            # self.renderer.update_scene(self.data)
-            image = self.renderer.render()
             print("Create envir.png")
-            imageio.imwrite('envir.png', image)
+            
+            upside_down_image = np.empty((self.height, self.width, 3), dtype=np.uint8)
+            mujoco.mjr_render(self.viewport, self.scn, self.ctx)
+            mujoco.mjr_readPixels(upside_down_image, None, self.viewport, self.ctx)
+            right_side_up_image = np.flipud(upside_down_image)
+            imageio.imwrite('envir.png', right_side_up_image)
+
         elif mode == 'video':
-            # # Allocate an array to store the pixels
-            # pixels = np.zeros((self.height, self.width, 3), dtype=np.uint8)
-            pass
-            # # Render the scene into the pixel buffer
-            # mujoco.mjr_render(mujoco.MjrRect(0, 0, self.width, self.height), self.scn, self.ctx)
+            # Allocate an array to store the pixels
+            pixels = np.zeros((self.height, self.width, 3), dtype=np.uint8)
+        
+            # Render the scene into the pixel buffer
+            mujoco.mjr_render(self.viewport, self.scn, self.ctx)
             
-            # # Read the pixels from the buffer
-            # mujoco.mjr_readPixels(pixels, None, mujoco.MjrRect(0, 0, self.width, self.height), self.ctx)
+            # Read the pixels from the buffer
+            mujoco.mjr_readPixels(pixels, None, self.viewport, self.ctx)
             
-            # # Add the frame to the list
-            # self.frames.append(pixels)
+            # Add the frame to the list
+            self.frames.append(np.flipud(pixels))
         else:
             raise NotImplementedError(f"Mode '{mode}' not supported.")
         
@@ -130,9 +144,3 @@ class BouncingBallEnv(gym.Env):
         # print("is_close_to_z_position=",is_close_to_z_position)
         return is_within_x_range and is_close_to_z_position
         
-    # def __del__(self):
-    #     # Clean up the OpenGL context when the environment is deleted
-    #     if hasattr(self, 'ctx'):
-    #         self.ctx.free()
-    #     if hasattr(self, 'gl_context'):
-    #         del self.gl_context

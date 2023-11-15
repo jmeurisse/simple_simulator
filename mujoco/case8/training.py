@@ -42,7 +42,7 @@ def discount_rewards(rewards, gamma=0.99):
     return discounted_r
 
 max_rewards = -1
-n_episodes = 1e3
+n_episodes = int(1e3)
 max_frames=[]
 
 for episode in range(n_episodes):

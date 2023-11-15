@@ -89,6 +89,8 @@ for episode in range(n_episodes):
         # You can modify this step to include a baseline or use advantage instead of raw rewards for more sophisticated algorithms
         weighted_log_probs = log_prob_actions * episode_rewards
 
+        # likelihood that an action will lead to a higher reward given a given output of the model
+
         # Policy gradient loss
         # The loss is the negative of the mean of these weighted log probabilities
         # Negative sign is because we want to maximize rewards, but TensorFlow performs minimization

@@ -44,7 +44,9 @@ init_actions=[50,-50]
 frames=[]
 for i in range(0,len(init_angles)):
     with tf.GradientTape() as tape:
-        env = BouncingBallEnv(init_angles[i],init_actions[i],frames)
+        env = BouncingBallEnv(init_angles[i],init_actions[i])
+        for frame in frames:
+            env.frames.append(frame)
         state = env.reset()
         done = False
 
@@ -55,8 +57,8 @@ for i in range(0,len(init_angles)):
             state, reward, done, _ = env.step(action.numpy())
             env.render("video")
     
-        # for frame in env.frames:
-        #     frames.append(frame)
+        for frame in env.frames:
+            frames.append(frame)
         if i == len(init_angles)-1:
             print("Create move_bar.mp4")
             env.save_video("move_bar.mp4") 

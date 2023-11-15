@@ -9,15 +9,12 @@ import gym, mujoco, imageio
 import numpy as np
 from mujoco import _render
 from mujoco import _enums
+import random
 
 # Define the MuJoCo Gym environment
 class BouncingBallEnv(gym.Env):
-    def __init__(self, init_angle,init_action):
+    def __init__(self):
     
-        # initial angle and action
-        self.init_angle=init_angle
-        self.init_action=init_action
-
         # Define action and observation space
         self.max_force_ctrl = 500
         self.action_space = gym.spaces.Box(low=-self.max_force_ctrl, high=self.max_force_ctrl, shape=(1,), dtype=np.float32)
@@ -57,9 +54,17 @@ class BouncingBallEnv(gym.Env):
 
         self.frames = []
         
-    def step(self, action):
-        #self.data.ctrl[0] = action[0][0]*self.max_force_ctrl/10   
-        self.data.ctrl[0] = self.init_action
+    def step(self, logits):
+        #self.data.ctrl[0] = logits[0][0]*self.max_force_ctrl/10 
+        epsilon=0.2
+        ratio=0.1
+        if np.random.rand() < epsilon:
+            # Perform random action - ensure it's within your action space bounds
+            self.data.ctrl[0] = np.random.uniform(low=-self.max_force_ctrl*ratio, high=self.max_force_ctrl*ratio)
+        else:
+            # Perform the action suggested by the model
+            self.data.ctrl[0] = logits[0][0]*self.max_force_ctrl*ratio
+      
         mujoco.mj_forward(self.model, self.data)
 
         # Step the simulation
@@ -81,14 +86,19 @@ class BouncingBallEnv(gym.Env):
 
         return state, reward, done, {}
 
-    def reset(self):
+    def reset(self, random_flag=True, init_angle_value=0):
         # Reset the simulation
         mujoco.mj_resetData(self.model, self.data)
         xpos = self.data.qpos[:]
         xvel = self.data.qvel[:]
         state = np.concatenate([xpos, xvel])
-        state[3] = np.deg2rad(self.init_angle)
-        self.data.qpos[3] = np.deg2rad(self.init_angle)
+        if random_flag:
+            self.random_integer = random.randint(0, 360)
+            init_angle = self.random_integer # degrees
+        else:
+            init_angle = init_angle_value
+        state[3] = np.deg2rad(init_angle)
+        self.data.qpos[3] = np.deg2rad(init_angle)
         return state
 
     def render(self, mode):

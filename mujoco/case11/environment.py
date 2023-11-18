@@ -99,9 +99,13 @@ class BouncingBallEnv(gym.Env):
         self.bar_center_x_vel_table = []
         self.ball_center_x_pos_table = []
         self.ball_center_z_pos_table = []
+        self.rewards_direction = []
+        self.rewards_wall = []
+        self.rewards_range_pos = []
+        self.rewards_range_vel = []
 
     def step(self, logits):
-        epsilon=0.05
+        epsilon=0.1
         ratio=0.1
         if np.random.rand() < epsilon:
             # Perform random action - ensure it's within your action space bounds
@@ -135,6 +139,11 @@ class BouncingBallEnv(gym.Env):
         self.bar_center_x_vel_table = []
         self.ball_center_x_pos_table = []
         self.ball_center_z_pos_table = []
+        self.rewards_direction = []
+        self.rewards_wall = []
+        self.rewards_range_pos = []
+        self.rewards_range_vel = []
+
         # inital positions
         self.bar_geom_id = mujoco.mj_name2id(self.model, mujoco.mjtObj.mjOBJ_GEOM, 'bar_geom')
         self.ball_geom_id = mujoco.mj_name2id(self.model, mujoco.mjtObj.mjOBJ_GEOM, 'ball_geom')
@@ -146,6 +155,7 @@ class BouncingBallEnv(gym.Env):
         self.init_ball_zpos = self.data.geom_xpos[self.ball_geom_id][2]
         self.init_left_wall_xpos = self.data.geom_xpos[self.left_wall_id][0]
         self.init_right_wall_xpos = self.data.geom_xpos[self.right_wall_id][0]
+
         # Reset the simulation
         mujoco.mj_resetData(self.model, self.data)
         xpos = self.data.qpos[:]
@@ -219,44 +229,53 @@ class BouncingBallEnv(gym.Env):
         ball_center_z_pos = self.data.geom_xpos[self.ball_geom_id][2]
         ball_center_x_vel = self.data.qvel[1]
 
-        bar_x_min = -0.25
-        bar_x_max = 0.25
+        bar_x_min = -0.25 + bar_center_x_pos
+        bar_x_max = 0.25 + bar_center_x_pos
         is_within_x_range = bar_x_min <= ball_center_x_pos <= bar_x_max
 
         bar_z_position = 1
         bar_z_tol = 0.1
-        is_close_to_the_bar = bar_z_position <= ball_center_z_pos <= bar_z_position + bar_z_tol
+        is_close_to_the_bar = bar_z_position <= ball_center_z_pos # <= bar_z_position + bar_z_tol
 
         wall_size = 0.1/2
         left_wall_x_pos =  self.data.geom_xpos[self.left_wall_id][0] + wall_size
         right_wall_x_pos =  self.data.geom_xpos[self.right_wall_id][0] - wall_size
-        wall_tol = 0.01
-        is_not_close_the_wall = left_wall_x_pos + wall_tol <= bar_center_x_pos <= right_wall_x_pos - wall_tol
+        wall_tol = 0.6
+        is_close_to_the_wall = left_wall_x_pos + wall_tol >= bar_center_x_pos or bar_center_x_pos >= right_wall_x_pos - wall_tol
 
-        # print(left_wall_x_pos + wall_tol, "<=", bar_center_x_pos ,"<=", right_wall_x_pos - wall_tol)
-        # print("ball_velocity=",ball_velocity)
-        # print("ball_center_x_pos=",ball_center_x_pos)
-        # print("ball_center_z_pos=",ball_center_z_pos)
-        # print("bar_center_x_pos=",bar_center_x_pos)
-        # print("is_not_close_the_wall=",is_not_close_the_wall)
-        # print("is_within_x_range=",is_within_x_range)
-        # print("is_close_to_the_bar",is_close_to_the_bar)
         self.bar_center_x_pos_table.append(bar_center_x_pos)
         self.bar_center_x_vel_table.append(bar_center_x_vel)
         self.ball_center_x_pos_table.append(ball_center_x_pos)
         self.ball_center_z_pos_table.append(ball_center_z_pos)
-        survival_reward = 0.01
-        wall_reward=1
-        total_reward=survival_reward
-        if is_not_close_the_wall:
-          total_reward+=wall_reward # add reward if not on the wall
+        
+        # initial
+        total_reward=0
+        
+        # survival reward
+        total_reward += 0.01
+
+        # desired direction
+        desired_direction = np.sign(ball_center_x_pos - bar_center_x_pos)
+        direction_alignment = np.sign(bar_center_x_vel) == desired_direction
+        direction_reward = 0.1 if direction_alignment else -0.1
+        total_reward += direction_reward
+        self.rewards_direction.append(direction_reward)
+
+        # wall reward
+        wall_reward = -1 if is_close_to_the_wall else 0
+        total_reward += wall_reward
+        self.rewards_wall.append(wall_reward)
+
+        # if close to the bar and within x range
+        pos_reward = -0.2
+        stab_reward = 0
         if is_within_x_range and is_close_to_the_bar:
-            max_distance = 0.4 * 0.25 # bar length/2 = 0.25 m
+            max_distance = 1 * 0.25 # bar length/2 = 0.25 m
             max_velocity = 5 # m/s
             pos_reward = self.positional_reward(ball_center_x_pos, bar_center_x_pos, max_distance)
             stab_reward = self.stability_reward(ball_center_x_vel, max_velocity)
-            # print("pos_reward=",pos_reward)
-            # print("stab_reward=",stab_reward)
-            # print("wall_reward=",total_reward)
-            total_reward += pos_reward + stab_reward
+        total_reward += pos_reward + stab_reward
+        self.rewards_range_pos.append(pos_reward)
+        self.rewards_range_vel.append(stab_reward)
+
         return total_reward

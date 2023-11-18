@@ -29,7 +29,10 @@ class PolicyModel(tf.keras.Model):
 
 # Create the environment and the model
 env = BouncingBallEnv()
-model = PolicyModel()
+#model = PolicyModel()
+# load model
+filepath="model_output"
+model = tf.keras.models.load_model(filepath)
 
 # Training loop
 optimizer = tf.keras.optimizers.legacy.Adam(learning_rate=0.001)
@@ -44,7 +47,7 @@ def discount_rewards(rewards, gamma=0.99):
     return discounted_r
 
 max_rewards = -1
-n_episodes = int(10)
+n_episodes = int(100)
 max_frames=[]
 init_angle = 45
 
@@ -163,8 +166,8 @@ for episode in range(n_episodes):
 
 
 
-os.system("rm -rf episodes.mp4")
-print("Create episode.mp4")
-env.save_video("episodes.mp4")
-filepath="model_output"
-max_model.save(filepath)
+#os.system("rm -rf episodes.mp4")
+#print("Create episode.mp4")
+#env.save_video("episodes.mp4")
+#filepath="model_output"
+#max_model.save(filepath)

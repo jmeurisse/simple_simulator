@@ -242,7 +242,7 @@ class BouncingBallEnv(gym.Env):
         self.ball_center_x_pos_table.append(ball_center_x_pos)
         self.ball_center_z_pos_table.append(ball_center_z_pos)
         survival_reward = 0.01
-        wall_reward=0.5
+        wall_reward=1
         total_reward=survival_reward
         if is_not_close_the_wall:
           total_reward+=wall_reward # add reward if not on the wall

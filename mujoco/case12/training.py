@@ -32,7 +32,7 @@ env = BouncingBallEnv()
 model = PolicyModel()
 
 # Training loop
-optimizer = tf.keras.optimizers.legacy.Adam(learning_rate=0.001)
+optimizer = tf.keras.optimizers.legacy.Adam(learning_rate=0.01)
 
 # Function to calculate discounted rewards
 def discount_rewards(rewards, gamma=0.99):

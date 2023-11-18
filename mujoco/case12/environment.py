@@ -169,7 +169,7 @@ class BouncingBallEnv(gym.Env):
         state[3] = np.deg2rad(init_angle)
         self.data.qpos[3] = np.deg2rad(init_angle)
         # give initial condition aligned
-        init_speed = -0.5 # m/s
+        init_speed = -0.75 # m/s
         state[7] = init_speed # bar x velocity
         self.data.qvel[0] = init_speed # bar x velocity
         return state
@@ -266,7 +266,7 @@ class BouncingBallEnv(gym.Env):
         # self.rewards_direction.append(direction_reward)
 
         # wall reward
-        wall_reward = 0 if is_close_to_the_wall else 0.5
+        wall_reward = -0.5 if is_close_to_the_wall else 0.5
         total_reward += wall_reward
         self.rewards_wall.append(wall_reward)
 

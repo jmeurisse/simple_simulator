@@ -1,18 +1,21 @@
+# Nov 23, 2023
+# Jeremie Meurisse
+# Simple simulator to explore reinforcement learning
+
 import os, sys
+import tensorflow as tf
+from tensorflow.keras import layers
+import numpy as np
+import tensorflow_probability as tfp
+from environment import BouncingBallEnv
+import matplotlib.pyplot as plt
+
+# Check the conda package
 expected_env = 'ffmpeg'
 current_env = os.environ.get('CONDA_DEFAULT_ENV')
 if current_env != expected_env:
     sys.exit(f"Error: This script requires the Conda environment '{expected_env}', but the current environment is '{current_env}'."+
              f" \nPlease activate the correct environment and try again.\nconda activate '{expected_env}'")
-
-from environment import BouncingBallEnv
-
-import tensorflow as tf
-from tensorflow.keras import layers
-import numpy as np
-import tensorflow_probability as tfp
-
-
 
 # Define the policy model using TensorFlow
 class PolicyModel(tf.keras.Model):
@@ -43,18 +46,20 @@ def discount_rewards(rewards, gamma=0.99):
         discounted_r[t] = running_add
     return discounted_r
 
+# Initialization
 max_rewards = -1
 n_episodes = int(10)
 max_frames=[]
 init_angle = 45
 
+# Episodes loop
 for episode in range(n_episodes):
     with tf.GradientTape() as tape:
         state = env.reset(False, init_angle)
         episode_states, episode_actions, episode_rewards = [], [], []
         done = False
         i = 0
-
+        # Step loop per episode
         while not done:
             state_tensor = tf.convert_to_tensor(state)
             state_tensor = tf.expand_dims(state_tensor, 0)
@@ -70,44 +75,24 @@ for episode in range(n_episodes):
         # Prepare the data for loss calculation
         episode_states = tf.concat(episode_states, axis=0)
         episode_actions = tf.concat(episode_actions, axis=0)
-        # print("episode_rewards=",episode_rewards)
         episode_rewards = discount_rewards(episode_rewards)
-        # print("discount episode_rewards=",episode_rewards)
+
         # Calculate loss
         logits = model(episode_states)
-        # mse_loss_fun = tf.keras.losses.MeanSquaredError()
-        # mse_loss = mse_loss_fun(episode_actions, logits) # Mean Square Error between the model's predicted actions and the actions taken.
-        # loss = tf.reduce_mean(mse_loss * episode_rewards)
 
         # Assuming your logits are the means of a Gaussian distribution for the actions
-        # You may also learn the standard deviation, but for simplicity, let's use a fixed value here
         std_dev = 0.5  # Standard deviation for the Gaussian policy
         logits = model(episode_states)
 
         # Calculate the Gaussian log probabilities
-        # Here, we compute the log probability of the episode_actions under the Gaussian distribution defined by logits (mean) and std_dev (standard deviation)
         action_prob_distribution = tfp.distributions.Normal(loc=logits, scale=std_dev)
         log_prob_actions = action_prob_distribution.log_prob(episode_actions)
 
-        # Weight log probabilities by rewards
-        # You can modify this step to include a baseline or use advantage instead of raw rewards for more sophisticated algorithms
+        # Weight log probabilities by rewards which represents the likelihood that an action will lead to a higher reward given a given output of the model
         weighted_log_probs = log_prob_actions * episode_rewards
 
-        # likelihood that an action will lead to a higher reward given a given output of the model
-
-        # Policy gradient loss
-        # The loss is the negative of the mean of these weighted log probabilities
-        # Negative sign is because we want to maximize rewards, but TensorFlow performs minimization
+        # Policy gradient loss. The loss is the negative of the mean of these weighted log probabilities. Negative sign is because we want to maximize rewards, but TensorFlow performs minimization
         loss = -tf.reduce_mean(weighted_log_probs)
-
-
-        # print("i=",i)
-        # print("episode_states=",episode_states.shape)
-        # print("episode_actions=",episode_actions)
-        # print("logits=",logits)
-        # print("action_prob_distribution=",action_prob_distribution)
-        # print("log_prob_actions",log_prob_actions)
-        # print("loss", loss)
 
         # Compute the gradients
         grads = tape.gradient(loss, model.trainable_variables)
@@ -118,6 +103,7 @@ for episode in range(n_episodes):
         rewards_sum = np.sum(episode_rewards)
         print(f"Episode: {episode} Reward: {rewards_sum} Loss: {loss} Initial angle: {init_angle}")
 
+        # To get the episode with the maximum rewards
         if rewards_sum > max_rewards:
             max_rewards=rewards_sum
             max_model=model
@@ -125,11 +111,9 @@ for episode in range(n_episodes):
             max_env = env
             print("max is episode",episode)
 
-        # env.frames=[]
-
-        import matplotlib.pyplot as plt
-
+        # Plot the positions and rewards
         fig, ax1 = plt.subplots(figsize=(10, 5))
+        # Rewards axis
         ax1.plot(env.rewards_direction, label='rewards_direction', ls="dashed", color='tab:blue')
         ax1.plot(env.rewards_wall, label='rewards_wall', ls="dashed", color='tab:cyan')
         ax1.plot(env.rewards_range_pos, label='rewards_range_pos', ls="dashed", color='tab:green')
@@ -138,8 +122,7 @@ for episode in range(n_episodes):
         ax1.set_xlabel('episode')
         ax1.set_ylabel('rewards')
         ax1.tick_params(axis='y')
-
-        # Create a second y-axis (for losses)
+        # Positions axis
         ax2 = ax1.twinx()
         ax2.plot(env.ball_center_x_pos_table, label='ball x', ls="solid", color='tab:orange')
         ax2.plot(env.ball_center_z_pos_table, label='ball z', ls="solid", color='tab:brown')
@@ -147,22 +130,17 @@ for episode in range(n_episodes):
         ax2.set_ylabel('position', color='tab:red')
         ax2.tick_params(axis='y')
         ax2.set_ylim(-5,2)
-
-        # Add a legend for all y-axes
+        # Legends
         lines1, labels1 = ax1.get_legend_handles_labels()
         lines2, labels2 = ax2.get_legend_handles_labels()
         lines = lines1 + lines2
         labels = labels1 + labels2
         ax1.legend(lines, labels, loc=1)
-
-        # Set the title and display the plot
         plt.title('Episode ' + str(episode) +' rewards')
         plt.grid(True)
         plt.savefig('rewards_'+ str(episode)+'.png')
 
-
-
-
+# Save the video and the model
 os.system("rm -rf episodes.mp4")
 print("Create episode.mp4")
 env.save_video("episodes.mp4")

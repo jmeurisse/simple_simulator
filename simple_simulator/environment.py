@@ -1,10 +1,24 @@
+# Nov 23, 2023
+# Jeremie Meurisse
+# Simple simulator to explore reinforcement learning
+
+
 import os, sys
+import gym, mujoco, imageio
+import numpy as np
+from mujoco import _render
+from mujoco import _enums
+import random
+
+# Check the conda package
 expected_env = 'ffmpeg'
 current_env = os.environ.get('CONDA_DEFAULT_ENV')
 if current_env != expected_env:
     sys.exit(f"Error: This script requires the Conda environment '{expected_env}', but the current environment is '{current_env}'."+
              f" \nPlease activate the correct environment and try again.\nconda activate '{expected_env}'")
 
+# XML MuJoCo file
+# Define bodies, geometries, joints, actuators, sensors, and rendering (lights, camera, ...)
 xml = """
 <mujoco model="bouncer">
   <compiler inertiafromgeom="true"/>
@@ -46,20 +60,16 @@ xml = """
     </actuator>
 </mujoco>
 """
-import os, sys
-import gym, mujoco, imageio
-import numpy as np
-from mujoco import _render
-from mujoco import _enums
-import random
 
 # Define the MuJoCo Gym environment
 class BouncingBallEnv(gym.Env):
+
+    # init function
     def __init__(self):
 
         # Define action and observation space
-        self.max_force_ctrl = 500
-        self.action_space = gym.spaces.Box(low=-self.max_force_ctrl, high=self.max_force_ctrl, shape=(1,), dtype=np.float32)
+        self.max_force_ctrl = 500 # [N]
+        self.action_space = gym.spaces.Box(low=-self.max_force_ctrl, high=self.max_force_ctrl, shape=(1,), dtype=np.float32) # same size than output
         self.observation_space = gym.spaces.Box(low=-np.inf, high=np.inf, shape=(8,), dtype=np.float32) # same size than state
 
         # Create an OpenGL context
@@ -83,17 +93,15 @@ class BouncingBallEnv(gym.Env):
         self.cam.distance = 4 # Distance from the point to look at
         self.cam.azimuth = 90 # Rotation around the vertical axis, in degrees
         self.cam.elevation = -30 # Angle above the horizon, in degrees
-
         mujoco.mjv_updateScene(
         self.model, self.data, mujoco.MjvOption(), mujoco.MjvPerturb(),
         mujoco.MjvCamera(), mujoco.mjtCatBit.mjCAT_ALL.value, self.scn)
-
         self.ctx = mujoco.MjrContext(self.model, mujoco.mjtFontScale.mjFONTSCALE_150.value)
         mujoco.mjr_setBuffer(mujoco.mjtFramebuffer.mjFB_OFFSCREEN.value, self.ctx)
-
         self.viewport = mujoco.MjrRect(0, 0, self.width, self.height)
         mujoco.mjr_render(self.viewport, self.scn, self.ctx)
 
+        # Tables initialization
         self.frames = []
         self.bar_center_x_pos_table = []
         self.bar_center_x_vel_table = []
@@ -104,7 +112,10 @@ class BouncingBallEnv(gym.Env):
         self.rewards_range_pos = []
         self.rewards_range_vel = []
 
+    # step function
     def step(self, logits):
+
+        # Exploitation vs exploration 
         epsilon=0.1
         ratio=0.1
         if np.random.rand() < epsilon:
@@ -114,6 +125,7 @@ class BouncingBallEnv(gym.Env):
             # Perform the action suggested by the model
             self.data.ctrl[0] = logits[0][0]*self.max_force_ctrl*ratio
 
+        # Update data
         mujoco.mj_forward(self.model, self.data)
 
         # Step the simulation
@@ -134,7 +146,10 @@ class BouncingBallEnv(gym.Env):
 
         return state, reward, done, {}
 
+    # reset function
     def reset(self, random_flag=True, init_angle_value=0):
+
+        # Reset the tables
         self.bar_center_x_pos_table = []
         self.bar_center_x_vel_table = []
         self.ball_center_x_pos_table = []
@@ -161,6 +176,7 @@ class BouncingBallEnv(gym.Env):
         xpos = self.data.qpos[:]
         xvel = self.data.qvel[:]
         state = np.concatenate([xpos, xvel])
+        # Give initial ball angle
         if random_flag:
             self.random_integer = random.randint(0, 360)
             init_angle = self.random_integer # degrees
@@ -168,105 +184,115 @@ class BouncingBallEnv(gym.Env):
             init_angle = init_angle_value
         state[3] = np.deg2rad(init_angle)
         self.data.qpos[3] = np.deg2rad(init_angle)
+        # Give initial ball speed
+        init_speed = -0.75 # m/s
+        state[7] = init_speed # bar x velocity
+        self.data.qvel[0] = init_speed # bar x velocity
         return state
 
+    # render function
     def render(self, mode):
-        # Ensure the OpenGL context is current
-        self.gl_context.make_current()
+        
+        # Update the data, scene and context
+        self.gl_context.make_current() # Ensure the OpenGL context is current
         mujoco.mj_forward(self.model, self.data)
-
         mujoco.mjv_updateScene(
         self.model, self.data, mujoco.MjvOption(), mujoco.MjvPerturb(),
         self.cam, mujoco.mjtCatBit.mjCAT_ALL.value, self.scn)
 
+        # Render depending on the mode
         if mode == 'human':
+            # Print data
             print(self.data)
         elif mode == 'image':
+            # Create image
             print("Create envir.png")
-
             upside_down_image = np.empty((self.height, self.width, 3), dtype=np.uint8)
             mujoco.mjr_render(self.viewport, self.scn, self.ctx)
             mujoco.mjr_readPixels(upside_down_image, None, self.viewport, self.ctx)
             right_side_up_image = np.flipud(upside_down_image)
             imageio.imwrite('envir.png', right_side_up_image)
-
         elif mode == 'video':
             # Allocate an array to store the pixels
             pixels = np.zeros((self.height, self.width, 3), dtype=np.uint8)
-
             # Render the scene into the pixel buffer
             mujoco.mjr_render(self.viewport, self.scn, self.ctx)
-
             # Read the pixels from the buffer
             mujoco.mjr_readPixels(pixels, None, self.viewport, self.ctx)
-
             # Add the frame to the list
             self.frames.append(np.flipud(pixels))
         else:
             raise NotImplementedError(f"Mode '{mode}' not supported.")
 
+    # Save video file as function of the frames table
     def save_video(self, video_name, framerate=60):
         print ("Video saved as "+video_name)
         with imageio.get_writer(video_name, fps=framerate) as writer:
             for frame in self.frames:
                 writer.append_data(frame)
 
+    # Reward for the x position of the ball vs the bar
     def positional_reward(self, ball_x, bar_center_x, max_distance):
         distance = abs(ball_x - bar_center_x)
         reward = np.exp(-distance**2 / (2 * max_distance**2))
         return reward
 
+    # Reward for the ball velocity
     def stability_reward(self, ball_velocity, max_velocity):
         reward = 1.0 - min(abs(ball_velocity) / max_velocity, 1.0)
         return reward
 
+    # Compute the reward
     def compute_reward(self, xpos, xvel):
+
+        # Bar position and velocity
         bar_center_z_pos = self.data.geom_xpos[self.bar_geom_id][2]
         bar_center_x_pos = self.data.geom_xpos[self.bar_geom_id][0]
         bar_center_x_vel = self.data.qvel[0]
 
+        # Ball position and velocity
         ball_center_x_pos = self.data.geom_xpos[self.ball_geom_id][0]
         ball_center_z_pos = self.data.geom_xpos[self.ball_geom_id][2]
         ball_center_x_vel = self.data.qvel[1]
 
+        # Ranges
         bar_x_min = -0.25 + bar_center_x_pos
         bar_x_max = 0.25 + bar_center_x_pos
         is_within_x_range = bar_x_min <= ball_center_x_pos <= bar_x_max
-
         bar_z_position = 1
         bar_z_tol = 0.1
-        is_close_to_the_bar = bar_z_position <= ball_center_z_pos # <= bar_z_position + bar_z_tol
-
+        is_close_to_the_bar = bar_z_position <= ball_center_z_pos
         wall_size = 0.1/2
         left_wall_x_pos =  self.data.geom_xpos[self.left_wall_id][0] + wall_size
         right_wall_x_pos =  self.data.geom_xpos[self.right_wall_id][0] - wall_size
         wall_tol = 0.6
         is_close_to_the_wall = left_wall_x_pos + wall_tol >= bar_center_x_pos or bar_center_x_pos >= right_wall_x_pos - wall_tol
 
+        # Add positions and velocities to the tables
         self.bar_center_x_pos_table.append(bar_center_x_pos)
         self.bar_center_x_vel_table.append(bar_center_x_vel)
         self.ball_center_x_pos_table.append(ball_center_x_pos)
         self.ball_center_z_pos_table.append(ball_center_z_pos)
         
-        # initial
+        # Initial reward
         total_reward=0
         
-        # survival reward
+        # Survival reward
         total_reward += 0.01
 
-        # desired direction
+        # Desired direction
         desired_direction = np.sign(ball_center_x_pos - bar_center_x_pos)
         direction_alignment = np.sign(bar_center_x_vel) == desired_direction
         direction_reward = 0.1 if direction_alignment else -0.1
         total_reward += direction_reward
         self.rewards_direction.append(direction_reward)
 
-        # wall reward
+        # Wall reward
         wall_reward = -1 if is_close_to_the_wall else 0
         total_reward += wall_reward
         self.rewards_wall.append(wall_reward)
 
-        # if close to the bar and within x range
+        # Ball reward: if close to the bar and within x range
         pos_reward = -0.2
         stab_reward = 0
         if is_within_x_range and is_close_to_the_bar:

@@ -32,7 +32,7 @@ env = BouncingBallEnv()
 model = PolicyModel()
 
 # Training loop
-optimizer = tf.keras.optimizers.legacy.Adam(learning_rate=0.01)
+optimizer = tf.keras.optimizers.legacy.Adam(learning_rate=0.001)
 
 # Function to calculate discounted rewards
 def discount_rewards(rewards, gamma=0.99):
@@ -43,7 +43,7 @@ def discount_rewards(rewards, gamma=0.99):
         discounted_r[t] = running_add
     return discounted_r
 
-max_rewards = -1e10
+max_rewards = -1
 n_episodes = int(10)
 max_frames=[]
 init_angle = 45
@@ -134,7 +134,7 @@ for episode in range(n_episodes):
         ax1.plot(env.rewards_wall, label='rewards_wall', ls="dashed", color='tab:cyan')
         ax1.plot(env.rewards_range_pos, label='rewards_range_pos', ls="dashed", color='tab:green')
         ax1.plot(env.rewards_range_vel, label='rewards_range_vel', ls="dashed", color='black')
-        ax1.set_ylim(-0.5,1.1)
+        ax1.set_ylim(-0.5,1)
         ax1.set_xlabel('episode')
         ax1.set_ylabel('rewards')
         ax1.tick_params(axis='y')
@@ -168,6 +168,3 @@ print("Create episode.mp4")
 env.save_video("episodes.mp4")
 filepath="model_output"
 max_model.save(filepath)
-f=open(filepath+"/max_rewards","w")
-f.write(str(max_rewards))
-f.close()
